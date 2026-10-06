@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rideplatform.core.model.TripEvent;
 
@@ -13,7 +14,7 @@ import com.rideplatform.core.model.TripEvent;
 public class KafkaProducer {
     @Autowired
     private KafkaTemplate<String, String> kafkaTemplate;
-    private ObjectMapper mapper =  new ObjectMapper(); 
+    private final ObjectMapper mapper =  new ObjectMapper(); 
     public void sendKafka(TripEvent TE, String topicName){
         try {
             String eventString = mapper.writeValueAsString(TE);
@@ -22,7 +23,7 @@ public class KafkaProducer {
             
             future.whenComplete((result, ex) -> {
                 if (ex == null) {
-                    System.out.println("Sent message=[" + TE + 
+                    System.out.println("Sent message=[" + eventString + 
                       "] with offset=[" + result.getRecordMetadata().offset() + "]");
                 } else {
                     System.err.println("Unable to send message=[" + 

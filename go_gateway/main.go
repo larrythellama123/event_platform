@@ -96,6 +96,14 @@ func (g *Gateway) handle_request(w http.ResponseWriter, req *http.Request) {
 
 func main() {
 	port := "8080"
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "start_events",
+		GroupID: "consumer-group;",
+	})
+	defer reader.Close()
+
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP("localhost:9092"),
 		Topic:    "requests",
@@ -103,7 +111,10 @@ func main() {
 	}
 	defer writer.Close()
 
-	g := &Gateway{}
+	g := &Gateway{
+		jobs:   make(chan TripEvent, 100),
+		writer: writer,
+	}
 	for w := 0; w < 10; w++ {
 		go g.worker(w)
 	}
