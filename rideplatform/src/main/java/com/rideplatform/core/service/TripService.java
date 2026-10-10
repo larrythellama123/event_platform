@@ -1,6 +1,5 @@
 package com.rideplatform.core.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.geo.Circle;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;
@@ -12,14 +11,25 @@ import org.springframework.data.redis.connection.RedisGeoCommands.GeoRadiusComma
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import com.rideplatform.core.kafka.KafkaProducer;
 import com.rideplatform.core.model.Driver;
 import com.rideplatform.core.model.TripEvent;
+import com.rideplatform.core.repository.TripRepository;
+
 
 @Service
 public class TripService {
-    @Autowired 
+    
     private StringRedisTemplate redisTemplate;
+    private KafkaProducer kafkaProducer;
+    private final TripRepository tripRepo;
 
+    public TripService(StringRedisTemplate redistemplate_, KafkaProducer kafkaProducer_, TripRepository tripRepo_){
+        this.redisTemplate =redistemplate_;
+        this.kafkaProducer = kafkaProducer_;
+        this.tripRepo = tripRepo_;
+    }
+    
     public void handle(TripEvent event){
         
         if(event.Type == "REQUESTED"){
@@ -37,21 +47,31 @@ public class TripService {
                 GeoLocation<String> location = firstRes.getContent();
                 String driverID = location.getName().toString();
                 event.DriverID = driverID;
-                event.Type = "START";    
+                event.Type = "START";
+                redisTemplate.opsForZSet().remove("drivers:locations", driverID);
             }
-            
+            kafkaProducer.sendKafka(event, "/start");
         }
-        else if(event.Type == "COMPLETE"){
-
+        else if(event.Type == "START"){
+            event.Type = "COMPLETE";
+            addDriver(event.DriverID, event.Lng, event.Lat);
+            tripRepo.save(event);
         }
         
     }
     public void addDriver(Driver driver){
         redisTemplate.opsForGeo().add(
             "drivers:locations", 
-            // FIX: Ensure the first argument is Longitude, and the second is Latitude
             new Point(Double.parseDouble(driver.Lng), Double.parseDouble(driver.Lat)),
             driver.DriverID
+        );
+    }
+
+    public void addDriver(String driverID, String Lng, String Lat){
+        redisTemplate.opsForGeo().add(
+            "drivers:locations", 
+            new Point(Double.parseDouble(Lng), Double.parseDouble(Lat)),
+            driverID
         );
     }
 

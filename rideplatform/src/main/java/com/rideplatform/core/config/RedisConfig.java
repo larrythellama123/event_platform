@@ -1,10 +1,12 @@
-package com.rideplatform.core.service;
+package com.rideplatform.core.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+
+import com.rideplatform.core.service.TripService;
 
 
 @Configuration

@@ -17,11 +17,9 @@ import (
 )
 
 type TripEvent struct {
-	EventID   string  `json:"eventId"`
 	TripID    string  `json:"tripId"`
 	DriverID  string  `json:"driverId"`
 	Type      string  `json:"type"` // REQUEST | MATCH | START | COMPLETE
-	Zone      string  `json:"zone"`
 	Lat       float64 `json:"lat"`
 	Lng       float64 `json:"lng"`
 	Timestamp string  `json:"timestamp"`

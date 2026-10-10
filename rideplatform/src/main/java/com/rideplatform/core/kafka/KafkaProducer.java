@@ -2,7 +2,6 @@ package com.rideplatform.core.kafka;
 
 import java.util.concurrent.CompletableFuture;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
@@ -12,9 +11,11 @@ import com.rideplatform.core.model.TripEvent;
 
 @Component
 public class KafkaProducer {
-    @Autowired
     private KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper mapper =  new ObjectMapper(); 
+    public KafkaProducer(KafkaTemplate<String, String> KT){
+        kafkaTemplate = KT;
+    }
     public void sendKafka(TripEvent TE, String topicName){
         try {
             String eventString = mapper.writeValueAsString(TE);
