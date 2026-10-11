@@ -10,11 +10,18 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 )
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
 
 type TripEvent struct {
 	TripID    string  `json:"tripId"`
@@ -25,8 +32,83 @@ type TripEvent struct {
 	Timestamp string  `json:"timestamp"`
 }
 
+type Hub struct {
+	mutex       sync.RWMutex
+	connections map[string]*websocket.Conn
+}
+
+func newHub(rdb *redis.Client, channelName string) *Hub {
+	return &Hub{
+		connections: make(map[*websocket.Conn]bool),
+	}
+}
+
 var validTypes = map[string]bool{
 	"REQUEST": true, "MATCH": true, "START": true, "COMPLETE": true,
+}
+
+func (g *Hub) handleWS(w http.ResponseWriter, r *http.Request) {
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Upgrade failed: %v", err)
+		return
+	}
+	mutex.Lock()
+	g.connections[ws] = true
+	mutex.Unlock()
+	defer func() {
+		mutex.Lock()
+		delete(g.connections, ws)
+		mutex.Unlock()
+		ws.Close()
+	}()
+
+	for {
+		_, msgBytes, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+		var trip_event TripEvent
+		json_err := json.NewDecoder(r.Body).Decode(&trip_event)
+		if json_err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		validate_err := validate(trip_event)
+		if validate_err != nil {
+			http.Error(w, validate_err.Error(), http.StatusBadRequest)
+			return
+		}
+		select {
+		case g.jobs <- trip_event:
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			http.Error(w, "server busy, retry", http.StatusServiceUnavailable)
+		}
+	}
+
+	// if r.Header.Get("Content-Type") != "application/json" {
+	// 	http.Error(w, "Status Unsupported Media Type", http.StatusUnsupportedMediaType)
+	// 	return
+	// }
+
+}
+
+func handleBroadcast() {
+	for {
+		msg := TripEvent{}
+		mutex.RLock()
+		for client := range clients {
+			if err := client.WriteJSON(msg); err != nil {
+				log.Printf("Write error: %v", err)
+				client.Close()
+				mutex.Lock()
+				delete(clients, client)
+				mutex.Unlock()
+			}
+		}
+		mutex.RUnlock()
+	}
 }
 
 func validate(e TripEvent) error {
@@ -67,29 +149,7 @@ func (g *Gateway) worker(id int) {
 }
 
 func (g *Gateway) handle_request(w http.ResponseWriter, req *http.Request) {
-	if req.Header.Get("Content-Type") != "application/json" {
-		http.Error(w, "Status Unsupported Media Type", http.StatusUnsupportedMediaType)
-		return
-	}
 
-	var trip_event TripEvent
-	err := json.NewDecoder(req.Body).Decode(&trip_event)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	validate_err := validate(trip_event)
-	if validate_err != nil {
-		http.Error(w, validate_err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	select {
-	case g.jobs <- trip_event:
-		w.WriteHeader(http.StatusAccepted)
-	default:
-		http.Error(w, "server busy, retry", http.StatusServiceUnavailable)
-	}
 }
 
 func main() {
@@ -125,6 +185,7 @@ func main() {
 		_, _ = w.Write([]byte("ok"))
 	})
 	srv := &http.Server{Addr: ":" + port, Handler: mux}
+	go handleBroadcast()
 	http.ListenAndServe(":8080", nil)
 
 	stop := make(chan os.Signal, 1)
