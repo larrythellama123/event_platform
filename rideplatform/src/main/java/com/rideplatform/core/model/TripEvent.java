@@ -15,20 +15,20 @@ public class TripEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false)
-    public Long tripID; 
+    public Long TripID; 
 
     @Column(nullable = false)
-    public String driverID;
+    public String DriverID;
 
     @Column(nullable = false)
-    public String type;
+    public String Type;
 
     @Column(nullable = false)
-    public String lat;
+    public String Lat;
 
     @Column(nullable = false)
-    public String lng;
+    public String Lng;
 
     @Column(nullable = false)
-    public String timeStamp;
+    public String TimeStamp;
 }

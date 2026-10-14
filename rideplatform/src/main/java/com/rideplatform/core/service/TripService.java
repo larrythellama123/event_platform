@@ -5,9 +5,11 @@ import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;
 import org.springframework.data.geo.GeoResults;
 import org.springframework.data.geo.Point;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisGeoCommands.DistanceUnit;
 import org.springframework.data.redis.connection.RedisGeoCommands.GeoLocation;
 import org.springframework.data.redis.connection.RedisGeoCommands.GeoRadiusCommandArgs;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,13 +17,15 @@ import com.rideplatform.core.kafka.KafkaProducer;
 import com.rideplatform.core.model.Driver;
 import com.rideplatform.core.model.TripEvent;
 import com.rideplatform.core.repository.TripRepository;
-
+import com.rideplatform.core.config.RedisConfig;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class TripService {
-    
-    private StringRedisTemplate redisTemplate;
-    private KafkaProducer kafkaProducer;
+    RedisConnectionFactory connectionFactory = new LettuceConnectionFactory();
+    private StringRedisTemplate redisTemplate = redisTemplate(connectionFactory);
+    private KafkaProducer kafkaProducer = new KafkaProducer() ;
     private final TripRepository tripRepo;
 
     public TripService(StringRedisTemplate redistemplate_, KafkaProducer kafkaProducer_, TripRepository tripRepo_){
@@ -29,6 +33,8 @@ public class TripService {
         this.kafkaProducer = kafkaProducer_;
         this.tripRepo = tripRepo_;
     }
+
+    public TripService(){}
     
     public void handle(TripEvent event){
         
@@ -55,6 +61,7 @@ public class TripService {
         else if(event.Type == "START"){
             event.Type = "COMPLETE";
             addDriver(event.DriverID, event.Lng, event.Lat);
+            kafkaProducer.sendKafka(event, "/complete");
             tripRepo.save(event);
         }
         

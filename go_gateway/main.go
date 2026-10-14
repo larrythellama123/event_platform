@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -30,84 +32,90 @@ type TripEvent struct {
 	Lat       float64 `json:"lat"`
 	Lng       float64 `json:"lng"`
 	Timestamp string  `json:"timestamp"`
+	Error     string  `json:"error"`
 }
 
 type Hub struct {
-	mutex       sync.RWMutex
-	connections map[string]*websocket.Conn
+	mutex sync.RWMutex
 }
 
-func newHub(rdb *redis.Client, channelName string) *Hub {
-	return &Hub{
-		connections: make(map[*websocket.Conn]bool),
-	}
+type Gateway struct {
+	jobs   chan TripEvent
+	reader *kafka.Reader
+	writer *kafka.Writer
 }
+
+var mutex sync.Mutex
+var clients = make(map[string]*websocket.Conn)
 
 var validTypes = map[string]bool{
 	"REQUEST": true, "MATCH": true, "START": true, "COMPLETE": true,
 }
 
-func (g *Hub) handleWS(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
+func (g *Gateway) handleWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Upgrade failed: %v", err)
 		return
 	}
-	mutex.Lock()
-	g.connections[ws] = true
-	mutex.Unlock()
-	defer func() {
-		mutex.Lock()
-		delete(g.connections, ws)
-		mutex.Unlock()
-		ws.Close()
-	}()
-
+	var trip_event TripEvent
 	for {
-		_, msgBytes, err := conn.ReadMessage()
-		if err != nil {
+		conn_read_err := conn.ReadJSON(trip_event)
+		if conn_read_err != nil {
 			break
-		}
-		var trip_event TripEvent
-		json_err := json.NewDecoder(r.Body).Decode(&trip_event)
-		if json_err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
 		}
 		validate_err := validate(trip_event)
 		if validate_err != nil {
-			http.Error(w, validate_err.Error(), http.StatusBadRequest)
-			return
+			trip_event.Error = "VALIDATION_ERROR"
+			conn.writeJSON(trip_event)
+			continue
 		}
-		select {
-		case g.jobs <- trip_event:
-			w.WriteHeader(http.StatusAccepted)
-		default:
-			http.Error(w, "server busy, retry", http.StatusServiceUnavailable)
-		}
+		payload, _ := json.Marshal(trip_event)
+		g.sendToKafka(payload)
 	}
+}
 
-	// if r.Header.Get("Content-Type") != "application/json" {
-	// 	http.Error(w, "Status Unsupported Media Type", http.StatusUnsupportedMediaType)
-	// 	return
-	// }
-
+func (g *Gateway) sendToKafka(payload []byte) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err := g.writer.WriteMessages(ctx, kafka.Message{
+		Value: payload,
+	})
+	cancel()
+	if err != nil {
+		log.Printf("could not write message")
+	}
+	log.Println("message was sent to kafka")
 }
 
 func handleBroadcast() {
+	u := url.URL{
+		Scheme: "wss",
+		Host:   "localhost:8080",
+		Path:   "/events",
+	}
+	client, _, _ := websocket.DefaultDialer.Dial(u.String(), nil)
+	defer client.Close()
+	trip_event := TripEvent{}
+	if err := client.WriteJSON(trip_event); err != nil {
+		log.Printf("Write error: %v", err)
+		client.Close()
+	}
+
 	for {
-		msg := TripEvent{}
-		mutex.RLock()
-		for client := range clients {
-			if err := client.WriteJSON(msg); err != nil {
+		conn_read_err := client.ReadJSON(trip_event)
+		if conn_read_err != nil {
+			break
+		}
+		if trip_event.Type == "START" {
+			time.Sleep(2 * time.Second)
+			if err := client.WriteJSON(trip_event); err != nil {
 				log.Printf("Write error: %v", err)
 				client.Close()
-				mutex.Lock()
-				delete(clients, client)
-				mutex.Unlock()
 			}
 		}
-		mutex.RUnlock()
+		if trip_event.Type == "Complete" {
+			//display on app maybe?
+		}
 	}
 }
 
@@ -125,31 +133,6 @@ func validate(e TripEvent) error {
 		return errors.New("lat/lng out of range")
 	}
 	return nil
-}
-
-type Gateway struct {
-	jobs   chan TripEvent
-	writer *kafka.Writer
-}
-
-func (g *Gateway) worker(id int) {
-	for j := range g.jobs {
-		payload, _ := json.Marshal(j)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := g.writer.WriteMessages(ctx, kafka.Message{
-			Key:   []byte(j.TripID),
-			Value: payload,
-		})
-		cancel()
-		if err != nil {
-			log.Printf("could not write message, worker id: %d", id)
-		}
-		log.Println("message was sent to kafka")
-	}
-}
-
-func (g *Gateway) handle_request(w http.ResponseWriter, req *http.Request) {
-
 }
 
 func main() {
@@ -170,22 +153,21 @@ func main() {
 	defer writer.Close()
 
 	g := &Gateway{
-		jobs:   make(chan TripEvent, 100),
+		reader: reader,
 		writer: writer,
-	}
-	for w := 0; w < 10; w++ {
-		go g.worker(w)
 	}
 
 	fmt.Println("Server about to run")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/events", g.handle_request)
+	mux.HandleFunc("/events", g.handleWS)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
 	srv := &http.Server{Addr: ":" + port, Handler: mux}
-	go handleBroadcast()
+	for i := 0; i < 5; i++ {
+		go handleBroadcast()
+	}
 	http.ListenAndServe(":8080", nil)
 
 	stop := make(chan os.Signal, 1)
