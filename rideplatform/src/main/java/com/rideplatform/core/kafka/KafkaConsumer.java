@@ -7,13 +7,12 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rideplatform.core.model.Driver;
 import com.rideplatform.core.model.TripEvent;
-import com.rideplatform.core.repository.TripRepository;
 import com.rideplatform.core.service.TripService;
 
 @Component
 public class KafkaConsumer {
 
-    private TripService tripService = new TripService();
+    private TripService tripService;
     private final ObjectMapper mapper = new ObjectMapper();
 
 

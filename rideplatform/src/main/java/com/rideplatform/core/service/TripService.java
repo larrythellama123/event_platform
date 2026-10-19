@@ -18,13 +18,12 @@ import com.rideplatform.core.model.Driver;
 import com.rideplatform.core.model.TripEvent;
 import com.rideplatform.core.repository.TripRepository;
 import com.rideplatform.core.config.RedisConfig;
-import lombok.RequiredArgsConstructor;
+import com.rideplatform.core.repository.TripRepository;
 
 @Service
-@RequiredArgsConstructor
 public class TripService {
     RedisConnectionFactory connectionFactory = new LettuceConnectionFactory();
-    private StringRedisTemplate redisTemplate = redisTemplate(connectionFactory);
+    private StringRedisTemplate redisTemplate;
     private KafkaProducer kafkaProducer = new KafkaProducer() ;
     private final TripRepository tripRepo;
 
@@ -34,11 +33,10 @@ public class TripService {
         this.tripRepo = tripRepo_;
     }
 
-    public TripService(){}
     
     public void handle(TripEvent event){
         
-        if(event.Type == "REQUESTED"){
+        if(event.Type.equals( "REQUESTED")){
             Point customerLocation = new Point(Double.parseDouble(event.Lng), Double.parseDouble(event.Lat));
             Distance radius = new Distance(2, DistanceUnit.KILOMETERS);
             Circle searchArea = new Circle(customerLocation, radius);
@@ -58,7 +56,7 @@ public class TripService {
             }
             kafkaProducer.sendKafka(event, "/start");
         }
-        else if(event.Type == "START"){
+        else if(event.Type.equals( "START")){
             event.Type = "COMPLETE";
             addDriver(event.DriverID, event.Lng, event.Lat);
             kafkaProducer.sendKafka(event, "/complete");
