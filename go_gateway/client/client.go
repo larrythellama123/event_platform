@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"my-app/types"
 	"net/url"
 	"time"
 
@@ -23,7 +24,7 @@ func handleBroadcast() {
 	log.Println("Dialed")
 
 	defer client.Close()
-	trip_event := TripEvent{
+	trip_event := types.TripEvent{
 		TripID:    "1",
 		DriverID:  "1",
 		Type:      "REQUEST",

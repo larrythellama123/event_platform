@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"log"
+	"my-app/types"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,10 +20,58 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
+type LocalGateway types.Gateway
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
+}
+
+func NewLocalGateway(reader *kafka.Reader, writer *kafka.Writer) *LocalGateway {
+	g := &LocalGateway{}
+	g.Host().SetReader(reader)
+	g.Host().SetWriter(writer)
+	return g
+}
+
+func (g *LocalGateway) Host() *types.Gateway {
+	return (*types.Gateway)(g)
+}
+
+func (g *LocalGateway) handleWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Upgrade failed: %v", err)
+		return
+	}
+	var trip_event types.TripEvent
+	for {
+		conn_read_err := conn.ReadJSON(trip_event)
+		if conn_read_err != nil {
+			break
+		}
+		validate_err := validate(trip_event)
+		if validate_err != nil {
+			trip_event.Error = "VALIDATION_ERROR"
+			conn.WriteJSON(trip_event)
+			continue
+		}
+		payload, _ := json.Marshal(trip_event)
+		g.sendToKafka(payload)
+	}
+}
+
+func (g *LocalGateway) sendToKafka(payload []byte) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err := g.Host().GetWriter().WriteMessages(ctx, kafka.Message{
+		Value: payload,
+	})
+	cancel()
+	if err != nil {
+		log.Printf("could not write message")
+	}
+	log.Println("message was sent to kafka")
 }
 
 var mutex sync.Mutex
@@ -31,7 +81,7 @@ var validTypes = map[string]bool{
 	"REQUEST": true, "MATCH": true, "START": true, "COMPLETE": true,
 }
 
-func validate(e TripEvent) error {
+func validate(e types.TripEvent) error {
 	if strings.TrimSpace(e.TripID) == "" {
 		return errors.New("tripId is required")
 	}
@@ -84,11 +134,7 @@ func main() {
 		Balancer: &kafka.LeastBytes{},
 	}
 	defer writer.Close()
-
-	g := &Gateway{
-		reader: reader,
-		writer: writer,
-	}
+	g := NewLocalGateway(reader, writer)
 
 	fmt.Println("Server about to run")
 
@@ -100,9 +146,6 @@ func main() {
 	mux.HandleFunc("/base", handler)
 
 	srv := &http.Server{Addr: ":" + port, Handler: mux}
-	for i := 0; i < 1; i++ {
-		go handleBroadcast()
-	}
 
 	log.Println("Listening on :8080")
 	http.ListenAndServe(":8080", nil)
@@ -115,5 +158,5 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	close(g.jobs)
+	close(g.Host().GetJobs())
 }

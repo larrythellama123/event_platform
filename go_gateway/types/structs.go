@@ -1,13 +1,7 @@
 package types
 
 import (
-	"context"
-	"encoding/json"
-	"log"
-	"my-app/types"
-	"net/http"
 	"sync"
-	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -32,37 +26,29 @@ type Gateway struct {
 	writer *kafka.Writer
 }
 
-func (g *Gateway) handleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("Upgrade failed: %v", err)
-		return
-	}
-	var trip_event types.TripEvent
-	for {
-		conn_read_err := conn.ReadJSON(trip_event)
-		if conn_read_err != nil {
-			break
-		}
-		validate_err := validate(trip_event)
-		if validate_err != nil {
-			trip_event.Error = "VALIDATION_ERROR"
-			conn.WriteJSON(trip_event)
-			continue
-		}
-		payload, _ := json.Marshal(trip_event)
-		g.sendToKafka(payload)
-	}
+func NewGateway(reader_ *kafka.Reader, writer_ *kafka.Writer) *Gateway {
+	g := &Gateway{}
+	g.SetReader(reader_)
+	g.SetWriter(writer_)
+	return g
 }
 
-func (g *Gateway) sendToKafka(payload []byte) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := g.writer.WriteMessages(ctx, kafka.Message{
-		Value: payload,
-	})
-	cancel()
-	if err != nil {
-		log.Printf("could not write message")
-	}
-	log.Println("message was sent to kafka")
+func (g *Gateway) SetReader(reader_ *kafka.Reader) {
+	g.reader = reader_
+}
+
+func (g *Gateway) SetWriter(writer_ *kafka.Writer) {
+	g.writer = writer_
+}
+
+func (g *Gateway) GetWriter() *kafka.Writer {
+	return g.writer
+}
+
+func (g *Gateway) GetReader() *kafka.Reader {
+	return g.reader
+}
+
+func (g *Gateway) GetJobs() chan TripEvent {
+	return g.jobs
 }
