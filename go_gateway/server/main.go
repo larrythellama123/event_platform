@@ -97,7 +97,7 @@ func validate(e types.TripEvent) error {
 	return nil
 }
 
-var templates = template.Must(template.ParseFiles("./templates/base.html"))
+var templates = template.Must(template.ParseFiles("../templates/base.html"))
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
@@ -148,7 +148,7 @@ func main() {
 	srv := &http.Server{Addr: ":" + port, Handler: mux}
 
 	log.Println("Listening on :8080")
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8080", mux)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)

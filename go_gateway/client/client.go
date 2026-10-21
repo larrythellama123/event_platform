@@ -13,7 +13,7 @@ func handleBroadcast() {
 	log.Println("loaded")
 
 	u := url.URL{
-		Scheme: "wss",
+		Scheme: "ws",
 		Host:   "localhost:8080",
 		Path:   "/events",
 	}

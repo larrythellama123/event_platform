@@ -1,11 +1,39 @@
+{{define "base"}}
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>{{.Title}}</title>
 </head>
 <body>
-    <h1>Hello, {{.Name}}!</h1>
-    <p>Welcome to your locally rendered Go web page.</p>
+    <h1>Welcome to {{.BusinessName}}</h1>
+    <p>{{.Slogan}}</p>
+
+    <div id="events-log"></div>
+
+    <script>
+        const socket = new WebSocket("ws://localhost:8080/events");
+
+        socket.onopen = function(e) {
+            console.log("[open] Connection established");
+            socket.send(JSON.stringify({
+                TripID: "1",
+                DriverID: "1",
+                Type: "REQUEST"
+            }));
+        };
+
+        socket.onmessage = function(event) {
+            console.log(`[message] Data received from server: ${event.data}`);
+            
+            const data = JSON.parse(event.data);
+            const logDiv = document.getElementById("events-log");
+            logDiv.innerHTML += `<p>Event Type: ${data.Type}</p>`;
+        };
+
+        socket.onerror = function(error) {
+            console.error(`[error] ${error.message}`);
+        };
+    </script>
 </body>
 </html>
+{{end}}
