@@ -32,9 +32,11 @@ var upgrader = websocket.Upgrader{
 
 var browser_conn *websocket.Conn
 
-func NewLocalGateway(reader *kafka.Reader, writer *kafka.Writer) *LocalGateway {
+func NewLocalGateway(reader *kafka.Reader, start_reader *kafka.Reader, complete_reader *kafka.Reader, writer *kafka.Writer) *LocalGateway {
 	g := &LocalGateway{}
 	g.SetReader(reader)
+	g.SetReaderSTART(start_reader)
+	g.SetReaderCOMPLETE(complete_reader)
 	g.SetWriter(writer)
 	return g
 }
@@ -58,7 +60,7 @@ func (g *LocalGateway) handleWS(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		payload, _ := json.Marshal(trip_event)
-		g.sendToKafka(payload)
+		g.sendToKafka(payload, trip_event.Type)
 
 		write_err := browser_conn.WriteJSON(trip_event)
 		if write_err != nil {
@@ -98,19 +100,32 @@ func (g *LocalGateway) sendToKafka(payload []byte, type_ string) {
 
 func (g *LocalGateway) readFromKafkaSTART() {
 	for {
-		msg, err := g.GetReader().ReadMessage(context.Background())
+		msg, err := g.GetReaderSTART().ReadMessage(context.Background())
 		if err != nil {
 			break
+		}
+		var trip_event types.TripEvent
+		json.Unmarshal(msg.Value, &trip_event)
+		write_err := browser_conn.WriteJSON(trip_event)
+		if write_err != nil {
+			log.Printf("Broadcast failed to a client: %v", write_err)
 		}
 	}
 }
 
 func (g *LocalGateway) readFromKafkaCOMPLETE() {
 	for {
-		msg, err := g.GetReader().ReadMessage(context.Background())
+		msg, err := g.GetReaderCOMPLETE().ReadMessage(context.Background())
 		if err != nil {
 			break
 		}
+		var trip_event types.TripEvent
+		json.Unmarshal(msg.Value, &trip_event)
+		write_err := browser_conn.WriteJSON(trip_event)
+		if write_err != nil {
+			log.Printf("Broadcast failed to a client: %v", write_err)
+		}
+
 	}
 }
 
@@ -168,6 +183,22 @@ func main() {
 	})
 	defer reader.Close()
 
+	start_reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "start_events",
+		GroupID: "consumer-group;",
+	})
+
+	defer start_reader.Close()
+
+	complete_reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "complete",
+		GroupID: "consumer-group;",
+	})
+
+	defer complete_reader.Close()
+
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP("localhost:9092"),
 		Topic:    "requests",
@@ -188,7 +219,7 @@ func main() {
 	}
 	log.Println("Kafka writer connectivity verified successfully.")
 
-	g := NewLocalGateway(reader, writer)
+	g := NewLocalGateway(reader, start_reader, complete_reader, writer)
 
 	fmt.Println("Server about to run")
 
