@@ -1,12 +1,12 @@
 server:
-  port: 8080
+  port: 8082
 
 app:
   topic: trip-events
 
 spring:
   datasource:
-    url: jdbc:postgresql://postgres:5432/rides
+    url: jdbc:postgresql://localhost:5432/rides
     username: rides
     password: rides
   jpa:
@@ -15,17 +15,17 @@ spring:
     open-in-view: false
   data:
     redis:
-      host: redis
-      port: 6379
+      host: localhost
   kafka:
-    bootstrap-servers: kafka:9092
+    bootstrap-servers: localhost:9092
     consumer:
       group-id: core-service
       auto-offset-reset: earliest
-      key-deserializer: org.springframework.kafka.support.serializer.StringDeserializer
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.value.default.type: "com.example.model"
+        spring.json.value.default.type: com.rideplatform.core.model.TripEvent
+        spring.json.trusted.packages: com.rideplatform.core.model
 
 
         

@@ -20,7 +20,9 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type LocalGateway types.Gateway
+type LocalGateway struct {
+	types.Gateway
+}
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -28,15 +30,13 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+var browser_conn *websocket.Conn
+
 func NewLocalGateway(reader *kafka.Reader, writer *kafka.Writer) *LocalGateway {
 	g := &LocalGateway{}
-	g.Host().SetReader(reader)
-	g.Host().SetWriter(writer)
+	g.SetReader(reader)
+	g.SetWriter(writer)
 	return g
-}
-
-func (g *LocalGateway) Host() *types.Gateway {
-	return (*types.Gateway)(g)
 }
 
 func (g *LocalGateway) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +47,7 @@ func (g *LocalGateway) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	var trip_event types.TripEvent
 	for {
-		conn_read_err := conn.ReadJSON(trip_event)
+		conn_read_err := conn.ReadJSON(&trip_event)
 		if conn_read_err != nil {
 			break
 		}
@@ -59,17 +59,32 @@ func (g *LocalGateway) handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 		payload, _ := json.Marshal(trip_event)
 		g.sendToKafka(payload)
+
+		write_err := browser_conn.WriteJSON(trip_event)
+		if write_err != nil {
+			log.Printf("Broadcast failed to a client: %v", write_err)
+		}
+	}
+}
+
+func (g *LocalGateway) handleBrowserWS(w http.ResponseWriter, r *http.Request) {
+	var err error
+	browser_conn, err = upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Upgrade failed: %v", err)
+		return
 	}
 }
 
 func (g *LocalGateway) sendToKafka(payload []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := g.Host().GetWriter().WriteMessages(ctx, kafka.Message{
+	defer cancel()
+	err := g.GetWriter().WriteMessages(ctx, kafka.Message{
 		Value: payload,
 	})
-	cancel()
 	if err != nil {
 		log.Printf("could not write message")
+		return
 	}
 	log.Println("message was sent to kafka")
 }
@@ -97,7 +112,7 @@ func validate(e types.TripEvent) error {
 	return nil
 }
 
-var templates = template.Must(template.ParseFiles("../templates/base.html"))
+var templates = template.Must(template.ParseFiles("/home/rohit/Desktop/event_platform/go_gateway/templates/base.html"))
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
@@ -133,13 +148,29 @@ func main() {
 		Topic:    "requests",
 		Balancer: &kafka.LeastBytes{},
 	}
+
 	defer writer.Close()
+
+	ctx_, cancel_ := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel_()
+
+	err := writer.WriteMessages(ctx_, kafka.Message{
+		Value: []byte("ping"),
+	})
+
+	if err != nil {
+		log.Fatalf("Kafka writer check failed! Cluster might be down: %v", err)
+	}
+	log.Println("Kafka writer connectivity verified successfully.")
+
 	g := NewLocalGateway(reader, writer)
 
 	fmt.Println("Server about to run")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", g.handleWS)
+	mux.HandleFunc("/browser", g.handleBrowserWS)
+
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
@@ -158,5 +189,5 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
-	close(g.Host().GetJobs())
+	close(g.GetJobs())
 }

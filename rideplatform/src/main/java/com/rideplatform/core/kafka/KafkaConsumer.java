@@ -16,7 +16,7 @@ public class KafkaConsumer {
     private final ObjectMapper mapper = new ObjectMapper();
 
 
-    @KafkaListener(topics = "events", groupId = "core-service", autoStartup = "true")
+    @KafkaListener(topics = "requests", groupId = "core-service", autoStartup = "true")
     public void listen_rides(String payload) {
         try {
             TripEvent TE = mapper.readValue(payload, TripEvent.class);

@@ -11,12 +11,11 @@ import com.rideplatform.core.model.TripEvent;
 
 @Component
 public class KafkaProducer {
-    private KafkaTemplate<String, String> kafkaTemplate = new KafkaTemplate<>(null);
+    private KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper mapper =  new ObjectMapper(); 
     public KafkaProducer(KafkaTemplate<String, String> KT){
         kafkaTemplate = KT;
     }
-    public KafkaProducer(){}
     public void sendKafka(TripEvent TE, String topicName){
         try {
             String eventString = mapper.writeValueAsString(TE);

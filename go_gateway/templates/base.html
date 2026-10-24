@@ -11,23 +11,15 @@
     <div id="events-log"></div>
 
     <script>
-        const socket = new WebSocket("ws://localhost:8080/events");
+        const socket = new WebSocket("ws://localhost:8080/browser");
 
-        socket.onopen = function(e) {
-            console.log("[open] Connection established");
-            socket.send(JSON.stringify({
-                TripID: "1",
-                DriverID: "1",
-                Type: "REQUEST"
-            }));
-        };
 
         socket.onmessage = function(event) {
             console.log(`[message] Data received from server: ${event.data}`);
             
             const data = JSON.parse(event.data);
             const logDiv = document.getElementById("events-log");
-            logDiv.innerHTML += `<p>Event Type: ${data.Type}</p>`;
+            logDiv.innerHTML += `<p>Event Type: ${data.type}</p>`;
         };
 
         socket.onerror = function(error) {

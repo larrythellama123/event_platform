@@ -1,8 +1,6 @@
 package types
 
 import (
-	"sync"
-
 	"github.com/segmentio/kafka-go"
 )
 
@@ -14,10 +12,6 @@ type TripEvent struct {
 	Lng       float64 `json:"lng"`
 	Timestamp string  `json:"timestamp"`
 	Error     string  `json:"error"`
-}
-
-type Hub struct {
-	mutex sync.RWMutex
 }
 
 type Gateway struct {

@@ -1,1 +1,10 @@
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/service/TripService.java
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/config/KafkaProducerConfig.java
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/kafka/KafkaConsumer.java
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/config/RedisConfig.java
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/model/TripEvent.java
 /home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/App.java
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/model/OnCreate.java
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/model/Driver.java
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/repository/TripRepository.java
+/home/rohit/Desktop/event_platform/rideplatform/src/main/java/com/rideplatform/core/kafka/KafkaProducer.java

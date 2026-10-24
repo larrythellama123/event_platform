@@ -1,5 +1,36 @@
 version: "2.2"
+
+volumes:
+  psql:
+  redis_data:
+
 services:
+  redis:
+    image: redis:alpine3.23
+    container_name: spring-redis-container
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    # WARNING: Your spring app lacks a password field. If you use --requirepass, 
+    # you must add 'password: your_secure_password' to spring.data.redis in your yml.
+    command: redis-server --appendonly yes
+    networks:
+      - app_net
+
+  postgres:  
+    image: postgres:16-alpine 
+    environment:
+      POSTGRES_DB: rides        
+      POSTGRES_USER: rides      
+      POSTGRES_PASSWORD: rides  
+    volumes:
+      - psql:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - app_net
+
   broker:
     image: apache/kafka:latest
     container_name: broker
@@ -8,34 +39,33 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://broker:9092,CONTROLLER://broker:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 3
     networks:
-      kafka_net:
-
+      - app_net
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     environment:
       KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:9092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: ""
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092
     ports:
       - "8081:8080"
     depends_on:
       - broker  
     networks:
-      kafka_net:
+      - app_net
 
 networks:
-  kafka_net:
+  app_net:  # Combined everything into a single shared network
     driver: bridge

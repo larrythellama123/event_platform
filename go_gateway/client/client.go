@@ -40,7 +40,7 @@ func handleBroadcast() {
 	log.Println("Written")
 
 	for {
-		conn_read_err := client.ReadJSON(trip_event)
+		conn_read_err := client.ReadJSON(&trip_event)
 		if conn_read_err != nil {
 			break
 		}
@@ -51,7 +51,7 @@ func handleBroadcast() {
 				client.Close()
 			}
 		}
-		if trip_event.Type == "Complete" {
+		if trip_event.Type == "COMPLETE" {
 			//display on app maybe?
 		}
 	}

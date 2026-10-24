@@ -24,7 +24,7 @@ import com.rideplatform.core.repository.TripRepository;
 public class TripService {
     RedisConnectionFactory connectionFactory = new LettuceConnectionFactory();
     private StringRedisTemplate redisTemplate;
-    private KafkaProducer kafkaProducer = new KafkaProducer() ;
+    private KafkaProducer kafkaProducer;
     private final TripRepository tripRepo;
 
     public TripService(StringRedisTemplate redistemplate_, KafkaProducer kafkaProducer_, TripRepository tripRepo_){
@@ -54,7 +54,7 @@ public class TripService {
                 event.Type = "START";
                 redisTemplate.opsForZSet().remove("drivers:locations", driverID);
             }
-            kafkaProducer.sendKafka(event, "/start");
+            kafkaProducer.sendKafka(event, "start_events");
         }
         else if(event.Type.equals( "START")){
             event.Type = "COMPLETE";
