@@ -152,7 +152,7 @@ func validate(e types.TripEvent) error {
 	return nil
 }
 
-var templates = template.Must(template.ParseFiles("/home/rohit/Desktop/event_platform/go_gateway/templates/base.html"))
+var templates = template.Must(template.ParseFiles("../templates/base.html"))
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
@@ -233,6 +233,8 @@ func main() {
 	mux.HandleFunc("/base", handler)
 
 	srv := &http.Server{Addr: ":" + port, Handler: mux}
+	go g.GetReaderSTART()
+	go g.GetReaderCOMPLETE()
 
 	log.Println("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
