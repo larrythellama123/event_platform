@@ -76,17 +76,42 @@ func (g *LocalGateway) handleBrowserWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (g *LocalGateway) sendToKafka(payload []byte) {
+func (g *LocalGateway) sendToKafka(payload []byte, type_ string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := g.GetWriter().WriteMessages(ctx, kafka.Message{
-		Value: payload,
-	})
-	if err != nil {
-		log.Printf("could not write message")
-		return
+
+	switch type_ {
+	case "REQUST":
+		err := g.GetWriter().WriteMessages(ctx, kafka.Message{
+			Topic: "requests",
+			Value: payload,
+		})
+		if err != nil {
+			log.Printf("could not write message")
+			return
+		}
+	default:
+		break
 	}
 	log.Println("message was sent to kafka")
+}
+
+func (g *LocalGateway) readFromKafkaSTART() {
+	for {
+		msg, err := g.GetReader().ReadMessage(context.Background())
+		if err != nil {
+			break
+		}
+	}
+}
+
+func (g *LocalGateway) readFromKafkaCOMPLETE() {
+	for {
+		msg, err := g.GetReader().ReadMessage(context.Background())
+		if err != nil {
+			break
+		}
+	}
 }
 
 var mutex sync.Mutex
