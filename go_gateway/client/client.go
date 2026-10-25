@@ -25,7 +25,6 @@ func handleBroadcast() {
 
 	defer client.Close()
 	trip_event := types.TripEvent{
-		TripID:    "1",
 		DriverID:  "1",
 		Type:      "REQUEST",
 		Lat:       1.0,

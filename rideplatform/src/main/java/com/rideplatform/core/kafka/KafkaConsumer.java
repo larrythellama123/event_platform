@@ -12,14 +12,19 @@ import com.rideplatform.core.service.TripService;
 @Component
 public class KafkaConsumer {
 
-    private TripService tripService;
+    private final TripService tripService;
     private final ObjectMapper mapper = new ObjectMapper();
+
+    public KafkaConsumer(TripService tripService) {
+        this.tripService = tripService;
+    }
 
 
     @KafkaListener(topics = "requests", groupId = "core-service", autoStartup = "true")
-    public void listen_rides(String payload) {
+    public void listen_rides(TripEvent TE) {
+        System.out.println("RUNNING");
         try {
-            TripEvent TE = mapper.readValue(payload, TripEvent.class);
+            // TripEvent TE = mapper.readValue(payload, TripEvent.class);
             tripService.handle(TE);
         } catch (Exception e) {
             System.err.println("Skipping bad event: " + e.getMessage());

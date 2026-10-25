@@ -1,5 +1,7 @@
 package com.rideplatform.core.model;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -15,20 +17,23 @@ public class TripEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false)
-    public Long TripID; 
+    public Integer TripID; 
 
     @Column(nullable = false)
-    public String DriverID;
+    public String driverId;
 
     @Column(nullable = false)
-    public String Type;
+    public String type;
 
     @Column(nullable = false)
-    public String Lat;
+    public Double lat;
 
     @Column(nullable = false)
-    public String Lng;
+    public Double lng;
 
     @Column(nullable = false)
-    public String TimeStamp;
+    public String timestamp;
+    
+    @Column(nullable = false)
+    public String error;
 }

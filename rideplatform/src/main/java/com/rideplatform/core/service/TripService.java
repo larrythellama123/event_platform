@@ -19,6 +19,8 @@ import com.rideplatform.core.model.TripEvent;
 import com.rideplatform.core.repository.TripRepository;
 import com.rideplatform.core.config.RedisConfig;
 import com.rideplatform.core.repository.TripRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class TripService {
@@ -26,6 +28,7 @@ public class TripService {
     private StringRedisTemplate redisTemplate;
     private KafkaProducer kafkaProducer;
     private final TripRepository tripRepo;
+    ObjectMapper mapper = new ObjectMapper();
 
     public TripService(StringRedisTemplate redistemplate_, KafkaProducer kafkaProducer_, TripRepository tripRepo_){
         this.redisTemplate =redistemplate_;
@@ -35,9 +38,16 @@ public class TripService {
 
     
     public void handle(TripEvent event){
-        
-        if(event.Type.equals( "REQUESTED")){
-            Point customerLocation = new Point(Double.parseDouble(event.Lng), Double.parseDouble(event.Lat));
+        System.out.println("STARTING HANDLE FUNC");
+        try {
+            System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(event));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        if(event.type.equals("REQUEST")){
+            System.out.println("REQUEST FUNC");
+
+            Point customerLocation = new Point(event.lng, event.lat);
             Distance radius = new Distance(2, DistanceUnit.KILOMETERS);
             Circle searchArea = new Circle(customerLocation, radius);
 
@@ -45,21 +55,24 @@ public class TripService {
             .includeDistance()
             .sortAscending();
 
-            GeoResults<GeoLocation<String>> results = redisTemplate.opsForGeo().radius("drivers:locations", searchArea, args);
-            if(results != null){
-                GeoResult<GeoLocation<String>> firstRes = results.getContent().get(0);
-                GeoLocation<String> location = firstRes.getContent();
-                String driverID = location.getName().toString();
-                event.DriverID = driverID;
-                event.Type = "START";
-                redisTemplate.opsForZSet().remove("drivers:locations", driverID);
-            }
+            // GeoResults<GeoLocation<String>> results = redisTemplate.opsForGeo().radius("drivers:locations", searchArea, args);
+            // if(results != null){
+            //     GeoResult<GeoLocation<String>> firstRes = results.getContent().get(0);
+            //     GeoLocation<String> location = firstRes.getContent();
+            //     String driverID = location.getName().toString();
+            //     event.driverId = driverID;
+            //     event.type = "START";
+            //     redisTemplate.opsForZSet().remove("drivers:locations", driverID);
+            // }
+            
+            //stub
+            event.type = "START";
             kafkaProducer.sendKafka(event, "start_events");
         }
-        else if(event.Type.equals( "START")){
-            event.Type = "COMPLETE";
-            addDriver(event.DriverID, event.Lng, event.Lat);
-            kafkaProducer.sendKafka(event, "/complete");
+        else if(event.type.equals( "START")){
+            event.type = "COMPLETE";
+            // addDriver(event.driverId, event.lng, event.lat);
+            kafkaProducer.sendKafka(event, "complete");
             tripRepo.save(event);
         }
         
@@ -72,12 +85,12 @@ public class TripService {
         );
     }
 
-    public void addDriver(String driverID, String Lng, String Lat){
-        redisTemplate.opsForGeo().add(
-            "drivers:locations", 
-            new Point(Double.parseDouble(Lng), Double.parseDouble(Lat)),
-            driverID
-        );
-    }
+    // public void addDriver(String driverID, String Lng, String Lat){
+    //     redisTemplate.opsForGeo().add(
+    //         "drivers:locations", 
+    //         new Point(Double.parseDouble(Lng), Double.parseDouble(Lat)),
+    //         driverID
+    //     );
+    // }
 
 }

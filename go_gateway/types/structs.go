@@ -5,7 +5,6 @@ import (
 )
 
 type TripEvent struct {
-	TripID    string  `json:"tripId"`
 	DriverID  string  `json:"driverId"`
 	Type      string  `json:"type"` // REQUEST | MATCH | START | COMPLETE
 	Lat       float64 `json:"lat"`

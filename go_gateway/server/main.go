@@ -83,13 +83,13 @@ func (g *LocalGateway) sendToKafka(payload []byte, type_ string) {
 	defer cancel()
 
 	switch type_ {
-	case "REQUST":
+	case "REQUEST":
 		err := g.GetWriter().WriteMessages(ctx, kafka.Message{
 			Topic: "requests",
 			Value: payload,
 		})
 		if err != nil {
-			log.Printf("could not write message")
+			log.Printf("could not write message,  %v", err)
 			return
 		}
 	default:
@@ -137,9 +137,6 @@ var validTypes = map[string]bool{
 }
 
 func validate(e types.TripEvent) error {
-	if strings.TrimSpace(e.TripID) == "" {
-		return errors.New("tripId is required")
-	}
 	if strings.TrimSpace(e.DriverID) == "" {
 		return errors.New("driverId is required")
 	}
@@ -152,7 +149,7 @@ func validate(e types.TripEvent) error {
 	return nil
 }
 
-var templates = template.Must(template.ParseFiles("../templates/base.html"))
+var templates = template.Must(template.ParseFiles("/home/rohit/Desktop/event_platform/go_gateway/templates/base.html"))
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
@@ -201,7 +198,6 @@ func main() {
 
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP("localhost:9092"),
-		Topic:    "requests",
 		Balancer: &kafka.LeastBytes{},
 	}
 
@@ -211,6 +207,7 @@ func main() {
 	defer cancel_()
 
 	err := writer.WriteMessages(ctx_, kafka.Message{
+		Topic: "requests",
 		Value: []byte("ping"),
 	})
 
@@ -233,8 +230,8 @@ func main() {
 	mux.HandleFunc("/base", handler)
 
 	srv := &http.Server{Addr: ":" + port, Handler: mux}
-	go g.GetReaderSTART()
-	go g.GetReaderCOMPLETE()
+	go g.readFromKafkaSTART()
+	go g.readFromKafkaCOMPLETE()
 
 	log.Println("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
