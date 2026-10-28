@@ -11,16 +11,16 @@ import com.rideplatform.core.model.TripEvent;
 
 @Component
 public class KafkaProducer {
-    private KafkaTemplate<String, String> kafkaTemplate;
+    private KafkaTemplate<String, TripEvent> kafkaTemplate;
     private final ObjectMapper mapper =  new ObjectMapper(); 
-    public KafkaProducer(KafkaTemplate<String, String> KT){
+    public KafkaProducer(KafkaTemplate<String, TripEvent> KT){
         kafkaTemplate = KT;
     }
     public void sendKafka(TripEvent TE, String topicName){
         try {
             String eventString = mapper.writeValueAsString(TE);
             
-            CompletableFuture<SendResult<String, String>> future = kafkaTemplate.send(topicName, eventString);
+            CompletableFuture<SendResult<String, TripEvent>> future = kafkaTemplate.send(topicName, TE);
             
             future.whenComplete((result, ex) -> {
                 if (ex == null) {
