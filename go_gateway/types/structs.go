@@ -13,6 +13,13 @@ type TripEvent struct {
 	Error     string  `json:"error"`
 }
 
+type DriverPos struct {
+	DriverID string  `json:"driverId"`
+	Lat      float64 `json:"lat"`
+	Lng      float64 `json:"lng"`
+	Error    string  `json:"error"`
+}
+
 type Gateway struct {
 	jobs            chan TripEvent
 	reader          *kafka.Reader
